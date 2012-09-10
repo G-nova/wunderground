@@ -17,7 +17,7 @@ function wunderground_menu() {
 
 function wunderground_block_info() {
   $blocks['wunderground_infos'] = array(
-    'info' => t('LaBaule : Meteo'),
+    'info' => t('Weather block'),
     'cache' => DRUPAL_CACHE_GLOBAL
   );
   return $blocks;
