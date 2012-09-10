@@ -1,0 +1,115 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function wunderground_menu() {
+  $items['ajax/wunderground'] = array(
+    'title' => 'Meteo',
+    'page callback' => 'wunderground_ajax',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+
+}
+
+function wunderground_block_info() {
+  $blocks['wunderground_infos'] = array(
+    'info' => t('LaBaule : Meteo'),
+    'cache' => DRUPAL_CACHE_GLOBAL
+  );
+  return $blocks;
+
+}
+
+function wunderground_block_view($delta = '') {
+  // This example is adapted from node.module.
+  $block = array();
+
+  switch ($delta) {
+    case 'wunderground_infos':
+      $block = _wunderground_infos();
+      break;
+  }
+  return $block;
+
+}
+
+/**
+ * Implements hook_cron().
+ *
+ */
+function wunderground_cron() {
+  $meteo = file_get_contents('http://api.wunderground.com/api/c89e40e964e6f2c9/forecast/lang:FR/q/zmw:00000.8.07217.json');
+  $myFile = variable_get('file_' . file_default_scheme() . '_path', conf_path() . '/files')."/meteo.json";
+  if(module_exists('boost')) {
+    global $_boost;
+    $file_to_delete = $_boost['base_dir'] . 'ajax/wunderground_.html';
+    if(file_exists($file_to_delete))
+    unlink($file_to_delete);
+  }
+  file_put_contents($myFile, $meteo);
+}
+
+function _wunderground_infos(){
+  $content = '';
+
+	$myFile = variable_get('file_' . file_default_scheme() . '_path', conf_path() . '/files')."/meteo.json";
+  if(is_dir(path_to_theme() . '/wunderground')) {
+    $meteoFolder = path_to_theme() . '/wunderground'; // Dossier contenant les pics des meteo à insérer à la place de ceux par défaut
+  }
+  elseif(is_dir('sites/all/libraries/wunderground')) {
+    $meteoFolder = 'sites/all/libraries/wunderground'; // Dossier contenant les pics des meteo à insérer à la place de ceux par défaut
+  }
+
+  if(file_exists($myFile)) {
+    $json_meteo = file_get_contents($myFile);
+    $meteo = json_decode($json_meteo);
+
+    if(isset($meteo) && isset($meteo->forecast->txt_forecast->forecastday)){
+
+      $forecastday_today = $meteo->forecast->txt_forecast->forecastday[0];
+      $forecastday_high = $meteo->forecast->simpleforecast->forecastday[0]->high->celsius;
+      $forecastday_low = $meteo->forecast->simpleforecast->forecastday[0]->low->celsius;
+
+
+
+      $content.= '<div>';
+      $file_icon = $meteoFolder.'/'.$forecastday_today->icon.'.png';
+
+      if(file_exists($file_icon)) {
+        $file_icon = base_path() . $file_icon;
+      }
+      else {
+        $file_icon = $forecastday_today->icon_url;
+      }
+
+      $content .= '<img width="22" height="22" src="'. $file_icon .'" alt="' . $forecastday_today->fcctext_metric . '" />';
+      $content.= '<span class="meteo-date">'.format_date(time(), 'custom', 'j M').'</span>';
+      $content.= '<span class="meteo-min">'.$forecastday_low.'°</span> / ';
+      $content.= '<span class="meteo-max">'.$forecastday_high.'° </span>';
+      $content.= '</div>';
+
+    }
+  }
+
+  $block['content'] = array(
+    'description' => array(
+      '#type' => 'markup',
+      '#markup' => $content,
+    ),
+  );
+
+  if(module_exists('boost') && user_is_anonymous()) { // Only get last meteo with ajax for anonymous if boost is active
+    // because boost generate static page, so meteo can be out of date
+    $block['content']['#attached']['js'] = array(drupal_get_path('module', 'wunderground') . '/js/wunderground.js');
+  }
+  return $block;
+}
+
+function wunderground_ajax(){
+  $block = module_invoke('wunderground', 'block_view', 'wunderground_infos');
+  print render($block);
+}

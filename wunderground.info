@@ -1,0 +1,4 @@
+name = Weather Underground
+description = Display meteo from Weather Underground service
+core = 7.x
+php = 5
